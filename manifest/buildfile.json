@@ -1,0 +1,8 @@
+{
+    "builds": [
+      {
+        "type": "command",
+        "command": "sf --version"
+      }
+    ]
+  }
