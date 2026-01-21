@@ -10,8 +10,6 @@ El Buildfile está organizado en formato JSON y contiene una lista de tareas en 
       "manifestFile": "manifest/package.xml",
       "testLevel": "RunSpecifiedTests",
       "classPath": "force-app/main/default/classes",
-      "preDestructiveChanges": "manifest/preDestructive/destructiveChanges.xml",
-      "postDestructiveChanges": "manifest/postDestructive/destructiveChanges.xml",
       "timeout": "33",
       "ignoreWarnings": true,
       "disableTracking": true,
