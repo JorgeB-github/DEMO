@@ -1,0 +1,4 @@
+projectPath: ./datapack
+queries:
+  - VlocityDataPackType: DataRaptor
+    query: Select Id from %vlocity_namespace%__DRBundle__c where Name LIKE '%VNT%'

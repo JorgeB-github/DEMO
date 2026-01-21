@@ -1,7 +1,0 @@
-projectPath: ./datapack
-autoUpdateSettings: true
-
-DataPacks:
-  - VlocityDataPackType: OmniScript
-    query: Name LIKE 'TMX_%'
-    activate: true

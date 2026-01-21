@@ -1,0 +1,6 @@
+projectPath: ./datapack
+queries:
+  - VlocityDataPackType: IntegrationProcedure
+    query: Select Id from %vlocity_namespace%__OmniScript__c where Name LIKE '%VNT%'
+
+    ##Trae DR tambien de esta forma##
