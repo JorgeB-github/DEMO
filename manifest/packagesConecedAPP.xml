@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>BootCampApp</members>
+        <name>ExternalClientApplication</name>
+    </types>
+    <types>
+        <members>BootCampApp_plcy</members>
+        <name>ExtlClntAppConfigurablePolicies</name>
+    </types>
+    <types>
+        <members>BootCampApp_glbloauth</members>
+        <name>ExtlClntAppGlobalOauthSettings</name>
+    </types>
+    <types>
+        <members>BootCampApp_oauthPlcy</members>
+        <name>ExtlClntAppOauthConfigurablePolicies</name>
+    </types>
+    <types>
+        <members>BootCampApp_oauth</members>
+        <name>ExtlClntAppOauthSettings</name>
+    </types>
+        <version>65.0</version>
+</Package>
