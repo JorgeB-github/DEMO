@@ -1,0 +1,62 @@
+{
+    "IsActive": true,
+    "IsOmniScriptEmbeddable": false,
+    "Name": "DELETENumberReservation",
+    "OmniProcessId": {
+        "Name": "TMX_VNT_EliminarReservaNumero",
+        "VlocityDataPackType": "VlocityMatchingKeyObject",
+        "VlocityMatchingRecordSourceKey": "OmniProcess/TMX_VNT/EliminarReservaNumero/Procedure",
+        "VlocityRecordSObjectType": "OmniProcess"
+    },
+    "PropertySetConfig": {
+        "actionMessage": "",
+        "additionalInput": {
+        },
+        "additionalOutput": {
+        },
+        "chainOnStep": false,
+        "disOnTplt": false,
+        "executionConditionalFormula": "",
+        "failOnStepError": false,
+        "failureConditionalFormula": "",
+        "failureResponse": {
+            "codeError": "%code%",
+            "descError": "%message%",
+            "reasonError": "%reason%"
+        },
+        "label": "HTTPAction1",
+        "namedCredential": "TMX_CROSS_micpreiosAuth",
+        "postActionLogging": "",
+        "preActionLogging": "%endpoint%",
+        "responseJSONNode": "",
+        "responseJSONPath": "",
+        "restMethod": "DELETE",
+        "restOptions": {
+            "clientCertificateName": "",
+            "headers": {
+                "mic_process_id": "%RA_GetHeadersData:processId%",
+                "mic_transaction_id": "%RA_GetHeadersData:transactionId%"
+            },
+            "isCompressed": false,
+            "params": {
+            },
+            "sendBody": false,
+            "timeout": 53000,
+            "xmlEscapeResponse": false
+        },
+        "restPath": "%DM_ConfigData:Configuracion:Environment%%DM_ConfigData:Configuracion:TMX_CROSS_Ruta__c%%reservationId%",
+        "retryCount": 1,
+        "returnOnlyAdditionalOutput": false,
+        "returnOnlyFailureResponse": true,
+        "sendJSONNode": "",
+        "sendJSONPath": "",
+        "sendOnlyAdditionalInput": false,
+        "show": null,
+        "type": "Integration",
+        "useFormulas": true
+    },
+    "Type": "Rest Action",
+    "VlocityDataPackType": "SObject",
+    "VlocityRecordSObjectType": "OmniProcessElement",
+    "VlocityRecordSourceKey": "OmniProcessElement/OmniProcess/TMX_VNT/EliminarReservaNumero/Procedure/DELETENumberReservation"
+}

@@ -1,9 +1,17 @@
 {
-    "builds": [
-      {
-        "type": "command",
-        "command": "sf --version"
-      }
-    ]
-  }
-  
+  "builds": [
+    {
+      "type": "metadata",
+      "manifestFile": "manifest/package.xml",
+      "testLevel": "RunSpecifiedTests",
+      "classPath": "force-app/main/default/classes",
+      "timeout": "33",
+      "ignoreWarnings": true,
+      "disableTracking": true
+    },
+    {
+      "type": "datapack",
+      "manifestFile": "manifest/sfi-package.yaml"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+    "IsActive": true,
+    "IsOmniScriptEmbeddable": false,
+    "Name": "LogNebula",
+    "OmniProcessId": {
+        "Name": "TMX_VNT_EliminarReservaNumero",
+        "VlocityDataPackType": "VlocityMatchingKeyObject",
+        "VlocityMatchingRecordSourceKey": "OmniProcess/TMX_VNT/EliminarReservaNumero/Procedure",
+        "VlocityRecordSObjectType": "OmniProcess"
+    },
+    "PropertySetConfig": {
+        "actionMessage": "",
+        "additionalInput": {
+            "apiNameIP": "TMX_VNT_EliminarReservaNumero",
+            "message": "=IF(%ValidateError:CalloutError%, CONCAT(%DELETENumberReservationInfo:statusCode%, \" - \", %DELETENumberReservationInfo:status%), IF(%ValidateError:ActualizaError%,%ActualizaLiberacionPedido:error%,%TMXVNTBorraCamposLiberacion:error%))",
+            "tag": "VENTAS"
+        },
+        "additionalOutput": {
+        },
+        "chainOnStep": false,
+        "disOnTplt": false,
+        "disableChainable": false,
+        "executionConditionalFormula": "%ValidateError:CalloutError% || %ValidateError:ActualizaError% || %ValidateError:BorrarError%",
+        "failOnStepError": false,
+        "failureConditionalFormula": "",
+        "failureResponse": {
+        },
+        "integrationProcedureKey": "TMX_CROSS_LogNebula",
+        "label": "IntegrationProcedureAction2",
+        "remoteOptions": {
+        },
+        "responseJSONNode": "",
+        "responseJSONPath": "",
+        "returnOnlyAdditionalOutput": false,
+        "returnOnlyFailureResponse": false,
+        "sendJSONNode": "",
+        "sendJSONPath": "",
+        "sendOnlyAdditionalInput": false,
+        "show": null,
+        "useFormulas": true
+    },
+    "Type": "Integration Procedure Action",
+    "VlocityDataPackType": "SObject",
+    "VlocityRecordSObjectType": "OmniProcessElement",
+    "VlocityRecordSourceKey": "OmniProcessElement/OmniProcess/TMX_VNT/EliminarReservaNumero/Procedure/LogNebula"
+}

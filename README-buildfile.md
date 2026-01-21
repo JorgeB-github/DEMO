@@ -16,12 +16,12 @@ El Buildfile está organizado en formato JSON y contiene una lista de tareas en 
       "outputFormat": "json"
     },
     {
-      "type": "datapack",
-      "manifestFile": "manifest/sfi-package.yaml"
-    },
-    {
       "type": "anonymousApex",
       "apexScript": "scripts/apex/hello.apex"
+    },
+    {
+      "type": "datapack",
+      "manifestFile": "manifest/sfi-package.yaml"
     },
     {
       "type": "command",

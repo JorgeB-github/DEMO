@@ -4,3 +4,4 @@ autoRetryErrors: true
 activate: true
 maxDepth: 0
 manifest:
+- IntegrationProcedure/TMX_VNT_EliminarReservaNumero
