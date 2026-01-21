@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v4.1.7
 
       - name: Extracting private key
-        run: 'echo "${{ secrets.JWT_DEMO }}" > BotCampDevOps.key'
+        run: 'echo "${{ secrets.JWT_BDOPS }}" > BotCampDevOps.key'
 
       - name: Running the build & deploy
         run: |
