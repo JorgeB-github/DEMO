@@ -11,7 +11,7 @@
     },
     {
       "type": "datapack",
-      "manifestFile": "manifest/sfi-package.yaml"
+      "manifestFile": "manifest/package-sfi.yaml"
     }
   ]
 }
