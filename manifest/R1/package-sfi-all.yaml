@@ -1,0 +1,7 @@
+projectPath: ./dataPack
+continueAfterError: true
+autoRetryErrors: true
+activate: true
+maxDepth: 0
+manifest:
+- DataRaptor/TMXCROSSUnificarNodos
