@@ -1,0 +1,46 @@
+name: Salesforce Code Analyzer - manual execution
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref from where the release/artifact is going to be downloaded and used as base for the deploy
+        type: string
+        required: true
+
+jobs:
+  salesforce-code-analyzer-workflow:
+    runs-on: 
+      group: gps-github-test-runners
+    container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
+
+    steps:
+      - name: Check out files
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Install Salesforce Code Analyzer Plugin
+        run: sf plugins install @salesforce/sfdx-scanner@latest
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+          
+      - name: Run Salesforce Code Analyzer
+        id: run-code-analyzer
+        uses: forcedotcom/run-code-analyzer@v1
+        with:
+          run-command: run
+          run-arguments: --normalize-severity --target ${{ steps.changed-files.outputs.all_changed_files }} --outfile results.html
+          results-artifact-name: salesforce-code-analyzer-results
+
+      #######
+      # The output steps.run-code-analyzer.outputs.num-sev1-violations, steps.run-code-analyzer.outputs.num-sev2-violations and steps.run-code-analyzer.outputs.num-sev3-violations
+      # might be used to change rules when to fail
+      #######
+      - name: Check the outputs to determine whether to fail
+        if: |
+          steps.run-code-analyzer.outputs.exit-code > 0 ||          
+          steps.run-code-analyzer.outputs.num-violations > 0
+        run: exit 1

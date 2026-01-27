@@ -1,0 +1,50 @@
+name: Release - manual create release and artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref from where the release/artifact is going to be downloaded and used as base for the deploy
+        type: string
+        required: true
+      tag:
+        description: Tag name to use to create the release
+        type: string
+        required: true
+      environment:
+        description: Environment that is going to be used to test the build before creating the release
+        type: string
+        required: true
+
+# Jobs to be executed
+jobs:
+  build-deploy-release:
+    runs-on: 
+      group: gps-github-test-runners
+    container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: "Checkout source code"
+        uses: actions/checkout@v4.1.7
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Extracting private key
+        run: 'echo "${{ secrets.JWT_KEY_NONPROD }}" > server.key'
+
+      - name: Running the build & deploy
+        run: |
+          export HOME=/root
+          sf builds deploy --buildfile manifest/buildfile.json --client-id ${{ vars.CLIENT_ID }} --instance-url ${{ vars.INSTANCE_URL }} --username ${{ vars.USERNAME }} --jwt-key-file server.key
+
+      - name: Setting git safe.directory
+        run: git config --global --add safe.directory '*'
+
+      - name: Archiving Repository
+        run: git archive -o ${{ github.event.repository.name }}-${{ inputs.tag }}.zip HEAD
+            
+      - name: Create Release
+        env:
+          GH_TOKEN: ${{ secrets.SVC_CLI_BOT_GITHUB_TOKEN }}
+        run: gh release create ${{ inputs.tag }} ${{ github.event.repository.name }}-${{ inputs.tag }}.zip
+

@@ -1,0 +1,86 @@
+name: Delta Deploy on PR (SF Validate Only)
+
+on:
+  pull_request:
+    branches:
+      - delta-target1
+
+jobs:
+  delta-validate-core:
+    runs-on:
+      group: gps-github-test-runners
+    container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
+
+    env:     
+      DELTA_SCRIPT: delta.py     
+      SOURCE_PATH: . 
+      SF_ALIAS: BuildQA                   
+      MANIFEST_DIR: Archivos_Modificados/manifest
+      SF_PACKAGE_XML: Archivos_Modificados/manifest/package.xml
+      SFI_MANIFEST: Archivos_Modificados/manifest/package-sfi.yaml
+      SF_TEST_LEVEL: RunLocalTests
+      SF_WAIT_MINUTES: "60"
+    
+    environment: build-qa
+    steps:
+      - name: Checkout             
+        uses: actions/checkout@v4.1.7
+        with:
+          fetch-depth: 0
+
+      # - name: Instalar Python
+      #   uses: actions/setup-python@v4
+      #   with:
+      #     python-version: '3.11'
+
+      # - name: Set up Node (for SF CLI & Vlocity Build)
+      #   uses: actions/setup-node@v4
+      #   with:
+      #     node-version: '20'
+
+      - name: Install Salesforce CLI + Vlocity Build Tool
+        run: |
+          npm i -g @salesforce/cli
+          sf --version
+      #     npm i -g vlocity
+      #     vlocity --version || true
+
+      #Ejecutar script Delta
+
+      - name: Run delta script (generate package.xml & SFI_MANIFEST.yaml)
+        run: |
+          git config --global --add safe.directory /__w/telmex-comms-cloud/telmex-comms-cloud
+          git fetch origin "${{ github.event.pull_request.base.ref }}"
+          git fetch origin "${{ github.event.pull_request.head.ref }}"
+          git branch --show-current
+          python3 "$DELTA_SCRIPT" 
+          echo "----- Package.xml preview -----"
+          if [ -f "$SF_PACKAGE_XML" ]; then sed -n '1,120p' "$SF_PACKAGE_XML"; fi
+          echo "----- package-sfi.yaml preview -----"
+          if [ -f "$SFI_MANIFEST" ]; then cat "$SFI_MANIFEST"; fi
+
+      #Validación de Despliegue Salesforce (solo si hay entradas)
+      - name: Extracting private key
+        run: 'echo "${{ secrets.JWT_KEY_NONPROD }}" > server.key'
+
+      - name: Deploy Salesforce (Metadata API)
+        if: ${{ hashFiles(env.SF_PACKAGE_XML) != '' }}
+        run: |
+          if grep -q "<types>" "$SF_PACKAGE_XML"; then
+            echo "Found members in package.xml. Deploying to Build-QA ..."
+            export HOME=/root
+            sf org login jwt --client-id ${{ vars.CLIENT_ID }} --instance-url ${{ vars.INSTANCE_URL }} --username ${{ vars.USERNAME }} --jwt-key-file server.key --alias "$SF_ALIAS"
+            sf project deploy validate --manifest "$SF_PACKAGE_XML" --test-level "$SF_TEST_LEVEL" -o "$SF_ALIAS"
+          else
+            echo "package.xml has no <types>; skipping SF deploy."
+          fi
+
+      #Publicar los artefactos del delta
+      - name: Upload delta artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: delta-artifacts
+          path: |
+            Archivos_Modificados/manifest/**
+          if-no-files-found: ignore

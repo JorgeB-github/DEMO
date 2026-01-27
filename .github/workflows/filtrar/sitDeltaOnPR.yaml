@@ -1,0 +1,50 @@
+name: Delta Deploy on PR - BuildSIT
+on:
+  pull_request:
+    branches:
+      - release-2
+
+jobs:
+  delta-deploy-buildsit:
+    runs-on: 
+      group: gps-github-test-runners
+    container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
+    environment: buildsit
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4.1.7
+        with:
+          fetch-depth: 0            # get full history so merge-base exists
+
+      - name: Extracting private key
+        run: 'echo "${{ secrets.JWT_KEY_NONPROD }}" > server.key'
+      
+      - name: Install SGD
+        run: echo y | sf plugins install "sfdx-git-delta@v6.19.0"
+      
+      - name: Generate Delta Salesforce manifest
+        run: |
+            git config --global --add safe.directory $GITHUB_WORKSPACE
+            git fetch origin "${{ github.event.pull_request.base.ref }}:${{ github.event.pull_request.base.ref }}"
+            git fetch origin "${{ github.event.pull_request.head.ref }}:${{ github.event.pull_request.head.ref }}"
+            sf sgd source delta -t ${{ github.event.pull_request.base.ref }} -f HEAD -o .                
+            cat package/package.xml
+   
+      - name: Generate Delta Vlocity manifest
+        run: |
+            git config --global --add safe.directory $GITHUB_WORKSPACE
+            git fetch origin "${{ github.event.pull_request.base.ref }}:${{ github.event.pull_request.base.ref }}"
+            git fetch origin "${{ github.event.pull_request.head.ref }}:${{ github.event.pull_request.head.ref }}"
+            python scripts/python/datapack.py ${{ github.event.pull_request.base.ref }} HEAD               
+
+      - name: Set Test Level
+        run: |
+          python scripts/python/testlevel.py \
+            --file package/buildfile.json \
+            --base "${{ github.event.pull_request.base.ref }}" \
+            --head "HEAD"
+         
+      - name: Running the build & deploy
+        run: |
+          export HOME=/root
+          sf builds deploy --buildfile package/buildfile.json --client-id ${{ vars.CLIENT_ID }} --instance-url ${{ vars.INSTANCE_URL }} --username ${{ vars.USERNAME }} --jwt-key-file server.key

@@ -1,0 +1,47 @@
+name: Delta Deploy on Push - FSTQA
+on:
+  push:
+    branches:
+      - develop-fst
+jobs:
+  delta-deploy-fstqa:
+    runs-on: 
+      group: gps-github-test-runners
+    container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
+    environment: fstqa
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4.1.7
+        with:
+          fetch-depth: 0            # get full history so merge-base exists
+
+      - name: Extracting private key
+        run: 'echo "${{ secrets.JWT_KEY_NONPROD }}" > server.key'
+      
+      - name: Install SGD
+        run: echo y | sf plugins install "sfdx-git-delta@v6.19.0"
+      
+      - name: Generate Delta Salesforce manifest
+        run: |
+            git config --global --add safe.directory $GITHUB_WORKSPACE
+            git fetch origin ${{ github.event.before }}
+            git fetch origin ${{ github.sha }}
+            sf sgd source delta -t ${{ github.event.before }} -f ${{ github.sha }} -o .                
+            cat package/package.xml
+   
+      - name: Generate Delta Vlocity manifest
+        run: |
+            git config --global --add safe.directory $GITHUB_WORKSPACE
+            python scripts/python/datapack.py ${{ github.event.before }} ${{ github.sha }}             
+
+      - name: Set Test Level
+        run: |
+          python scripts/python/testlevel.py \
+            --file package/buildfile.json \
+            --base "${{ github.event.before }}" \
+            --head "${{ github.sha }}"
+
+      - name: Running the build & deploy
+        run: |
+          export HOME=/root
+          sf builds deploy --buildfile package/buildfile.json --client-id ${{ vars.CLIENT_ID }} --instance-url ${{ vars.INSTANCE_URL }} --username ${{ vars.USERNAME }} --jwt-key-file server.key

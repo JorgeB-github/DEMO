@@ -1,0 +1,39 @@
+name: Release - deploy artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag from where the artifact is going to be downloaded and used as base for the deploy
+        type: string
+        required: true
+      environment:
+        description: Environment that is going to be used
+        type: string
+        required: true
+
+# Jobs to be executed
+jobs:
+  build-deploy:
+    runs-on: 
+      group: gps-github-test-runners
+    container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Download Artifact
+        env:
+          GH_TOKEN: ${{ secrets.SVC_CLI_BOT_GITHUB_TOKEN }}
+        run: gh release download ${{ inputs.tag }} -R ${{ github.repository }}
+
+      - name: Unzip artifact
+        run: unzip ${{ github.event.repository.name }}-${{ inputs.tag }}.zip -d outputdir/
+
+      - name: Extracting private key
+        working-directory: ./outputdir/
+        run: 'echo "${{ secrets.JWT_KEY_NONPROD }}" > server.key'
+
+      - name: Running the build & deploy
+        working-directory: ./outputdir/
+        run: |
+          export HOME=/root       
+          sf builds deploy --buildfile manifest/buildfile.json --client-id ${{ vars.CLIENT_ID }} --instance-url ${{ vars.INSTANCE_URL }} --username ${{ vars.USERNAME }} --jwt-key-file server.key

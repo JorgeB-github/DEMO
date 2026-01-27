@@ -1,0 +1,55 @@
+name: Sandbox Creation - start
+on:
+  workflow_dispatch:
+    inputs:
+      sandboxName:
+        description: Name of the sandbox to be created
+        type: string
+        required: true
+      licenseType:
+        description: Type of sandbox license. Could be Developer, Developer_Pro, Partial, and Full
+        type: choice
+        required: true
+        options:
+          - Developer
+          - Developer_Pro
+          - Partial
+          - Full
+      aditionalParameters:
+        description: Any aditional parameters that you may want to send upon sandbox creation, for instance, --no-track-source for sandboxes that are not meant for development
+        type: string
+        required: false
+
+# Jobs to be executed
+jobs:
+  sandbox-creation-start:
+    runs-on: 
+      group: gps-github-test-runners
+    container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
+    environment: prod
+    steps:
+      - name: Extracting private key
+        id: extractPrivateKey
+        run: 'echo "${{ secrets.JWT_KEY_PROD }}" > server.key'
+
+      - name: Authenticate on production
+        id: authProd
+        run: |
+          export HOME=/root
+          sf org login jwt --instance-url https://login.salesforce.com --client-id ${{ vars.CLIENT_ID }} --username ${{ vars.USERNAME }} --jwt-key-file server.key --alias prodOrg
+
+      - name: Start the process to create the sandbox
+        id: create
+        continue-on-error: true
+        run: |
+          set +e 
+          export HOME=/root
+          sf org create sandbox --name ${{ inputs.sandboxName }} --license-type ${{ inputs.licenseType }} --alias sdbx --target-org prodOrg --async --no-prompt ${{ inputs.aditionalParameters }}
+          echo "exitcode=$?" >> $GITHUB_OUTPUT
+
+      - name: Check exit code to confirm successful call
+        id: check
+        if: ${{ steps.create.outputs.exitcode != 68 }}
+        run: |
+          echo "Error on sandbox creation - please check the results of the last step."
+          exit 1

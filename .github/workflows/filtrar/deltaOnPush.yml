@@ -1,0 +1,165 @@
+name: Deploy After Merge (SF)
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - delta-target1
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  deploy-from-pr-artifacts:
+    if: ${{ github.event.pull_request.merged == true }}
+    runs-on:
+      group: gps-github-test-runners
+    container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
+
+    env:
+      SF_TEST_LEVEL: NoTestRun
+      SF_ALIAS: Build-QA
+      INSTANCE_URL: ${{ vars.INSTANCE_URL }}
+      CLIENT_ID: ${{ vars.CLIENT_ID }}
+      USERNAME: ${{ vars.USERNAME }}
+
+    environment: build-qa
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Descarga el artefacto 'delta-artifacts' del workflow de PR para ESTE PR
+      - name: Locate successful PR workflow run
+        id: locate_run
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const core = require('@actions/core');
+            const {owner, repo} = context.repo;
+            const pr = context.payload.pull_request;
+            const workflowFile = 'deltaOnPR.yml'; // <-- AJUSTA si tu workflow de PR tiene otro nombre
+
+            // Trae runs del workflow de PR (evento pull_request) y filtra por este PR
+            const runs = await github.paginate(
+              github.rest.actions.listWorkflowRuns,
+              { owner, repo, workflow_id: workflowFile, event: 'pull_request', per_page: 100 }
+            );
+
+            const match = runs.find(r =>
+              r.conclusion === 'success' &&
+              Array.isArray(r.pull_requests) &&
+              r.pull_requests.some(p => p.number === pr.number)
+            );
+
+            if (!match) {
+              core.setFailed(`No successful runs found in ${workflowFile} for PR #${pr.number}`);
+              return;
+            }
+
+            core.info(`Using workflow_run id=${match.id} (head_sha=${match.head_sha})`);
+            core.setOutput('run_id', String(match.id));
+
+      - name: Find 'delta-artifacts' in that run
+        id: find_artifact
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const core = require('@actions/core');
+            const {owner, repo} = context.repo;
+            const run_id = Number(core.getInput('run_id'));
+
+            const {data} = await github.rest.actions.listWorkflowRunArtifacts({ owner, repo, run_id });
+            const arts = data.artifacts || [];
+            const target = arts.find(a => a.name === 'delta-artifacts' && !a.expired);
+
+            if (!target) {
+              core.setFailed(`Artifact 'delta-artifacts' not found in run ${run_id}. Found: ${arts.map(a=>a.name).join(', ')}`);
+              return;
+            }
+            core.info(`Artifact ${target.name} id=${target.id} size=${target.size_in_bytes}`);
+            core.setOutput('artifact_id', String(target.id));
+          with: |
+            run_id: ${{ steps.locate_run.outputs.run_id }}
+
+      - name: Download artifact ZIP
+        id: download_zip
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const {owner, repo} = context.repo;
+            const artifact_id = Number(core.getInput('artifact_id'));
+            const out = path.join(process.cwd(), 'delta-artifacts.zip');
+
+            const resp = await github.request('GET /repos/{owner}/{repo}/actions/artifacts/{artifact_id}/zip', {
+              owner, repo, artifact_id,
+              request: { responseType: 'arraybuffer' }
+            });
+
+            fs.writeFileSync(out, Buffer.from(resp.data));
+            core.info(`Saved ${out} (${fs.statSync(out).size} bytes)`);
+          with: |
+            artifact_id: ${{ steps.find_artifact.outputs.artifact_id }}
+
+      - name: Unzip artifacts
+        run: |
+          mkdir -p retrieved_manifests
+          unzip -o delta-artifacts.zip -d retrieved_manifests
+          echo "Artifacts extracted to retrieved_manifests/"
+          ls -R retrieved_manifests || true
+
+      - name: Resolve manifest paths
+        id: paths
+        shell: bash
+        run: |
+          SF_PKG=$(find retrieved_manifests -type f -name 'package.xml' | head -n1 || true)
+          VLO_MNF=$(find retrieved_manifests -type f \( -name '*manifest*.yml' -o -name '*manifest*.yaml' \) | head -n1 || true)
+          echo "sf_package_xml=$SF_PKG" >> $GITHUB_OUTPUT
+          echo "vlocity_manifest=$VLO_MNF" >> $GITHUB_OUTPUT
+
+      - name: Auth to Salesforce (JWT)
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.JWT_KEY }}" ]; then echo "Missing secrets.JWT_KEY (PEM)"; exit 1; fi
+          echo "${{ secrets.JWT_KEY }}" > server.key
+          export HOME=/root
+          sf org login jwt \
+            --client-id "$CLIENT_ID" \
+            --instance-url "$INSTANCE_URL" \
+            --username "$USERNAME" \
+            --jwt-key-file server.key \
+            --alias "$SF_ALIAS"
+
+      - name: Deploy Metadata (package.xml)
+        if: ${{ steps.paths.outputs.sf_package_xml != '' }}
+        shell: bash
+        env:
+          SF_PACKAGE_XML: ${{ steps.paths.outputs.sf_package_xml }}
+        run: |
+          echo "Using manifest: $SF_PACKAGE_XML"
+          if grep -q "<types>" "$SF_PACKAGE_XML"; then
+            sf project deploy start \
+              --manifest "$SF_PACKAGE_XML" \
+              --test-level "$SF_TEST_LEVEL" \
+              -o "$SF_ALIAS" \
+              --ignore-conflicts
+          else
+            echo "package.xml has no <types>; skipping SF deploy."
+          fi
+
+      - name: Deploy Vlocity
+        if: ${{ steps.paths.outputs.vlocity_manifest != '' }}
+        shell: bash
+        env:
+          VLOCITY_MANIFEST: ${{ steps.paths.outputs.vlocity_manifest }}
+        run: |
+          if grep -q "^\s*-\s" "$VLOCITY_MANIFEST"; then
+          echo "Vlocity manifest: $VLOCITY_MANIFEST"
+          vlocity -sfdx.username "$SF_ALIAS" -job "$VLOCITY_MANIFEST" packDeploy
+          else
+            echo "VLOCITY_MANIFEST.yaml is empty; skipping Vlocity deploy."
+          fi

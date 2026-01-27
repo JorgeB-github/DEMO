@@ -1,0 +1,24 @@
+name: R2 SIT 
+
+on:
+  push:
+    branches:
+      - release-2
+
+jobs:
+  sit-deploy-on-push:
+    runs-on: 
+      group: gps-github-test-runners
+    container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
+    environment: sit
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4.1.7
+
+      - name: Extracting private key
+        run: 'echo "${{ secrets.JWT_KEY_NONPROD }}" > server.key'
+
+      - name: Running the build & deploy
+        run: |
+          export HOME=/root
+          sf builds deploy --buildfile manifest/buildfile.json --client-id ${{ vars.CLIENT_ID }} --instance-url ${{ vars.INSTANCE_URL }} --username ${{ vars.USERNAME }} --jwt-key-file server.key

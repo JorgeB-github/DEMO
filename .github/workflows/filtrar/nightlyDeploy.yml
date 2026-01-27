@@ -1,0 +1,41 @@
+name: Nightly Deploy Salesforce y Vlocity
+
+on:
+  schedule:
+    # Corre a las 06:00 UTC = 00:00 América/Mexico
+    - cron: '0 6 * * *'
+  workflow_dispatch: {}  # Permite ejecutarlo manualmente
+
+jobs:
+  nightly-deploy-buildqa:
+    runs-on: 
+      group: gps-github-test-runners
+    container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
+    environment: build-qa
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4.1.7
+        
+      - name: Extracting private key
+        run: 'echo "${{ secrets.JWT_KEY_NONPROD }}" > server.key'
+    
+      - name: Generating Salesforce manifest
+        run: |
+          sf project generate manifest --source-dir force-app/main/default --name package --output-dir package
+      
+      - name: Removed components from Package
+        run: |
+          python scripts/python/night.py
+   
+      - name: Save JSON to file
+        run: |
+          echo "$BUILD" > package/buildfile.json
+        env:
+          BUILD: ${{ vars.BUILDFILE }}
+      
+      
+          
+      - name: Running the build & deploy
+        run: |
+          export HOME=/root
+          sf builds deploy --buildfile package/buildfile.json --client-id ${{ vars.CLIENT_ID }} --instance-url ${{ vars.INSTANCE_URL }} --username ${{ vars.USERNAME }} --jwt-key-file server.key

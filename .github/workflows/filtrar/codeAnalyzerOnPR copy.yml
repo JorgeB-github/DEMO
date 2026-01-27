@@ -1,0 +1,63 @@
+name: Salesforce Code Analyzer - PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  salesforce-code-analyzer-workflow:
+    name: "${{ github.event.pull_request.head.ref }}"
+    runs-on: 
+      group: gps-github-test-runners
+    container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
+    continue-on-error: true
+
+    steps:
+      - name: Check out files
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Mark repository as safe
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Show PR Info
+        run: |
+          echo "Running Salesforce Code Analyzer for PR: ${{ github.event.pull_request.title }}"
+          echo "Branch: ${{ github.event.pull_request.head.ref }}"
+          echo "Changes Summary:"
+          git diff --stat origin/${{ github.event.pull_request.base.ref }} ${{ github.event.pull_request.head.ref }} | tail -n 1
+
+      - name: Install Salesforce Code Analyzer Plugin
+        run: sf plugins install @salesforce/sfdx-scanner@latest
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+
+      - name: Run Salesforce Code Analyzer
+        id: run-code-analyzer
+        uses: forcedotcom/run-code-analyzer@v1
+        with:
+          run-command: run
+          run-arguments: --normalize-severity --target ${{ steps.changed-files.outputs.all_changed_files }} --outfile results.html
+          results-artifact-name: salesforce-code-analyzer-results
+
+      - name: Save Analysis as Comment
+        uses: actions/github-script@v7.0.0
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '👋 Salesforce Code Analyzer finished with exit-code: ${{steps.run-code-analyzer.outputs.exit-code}} and sev1: ${{steps.run-code-analyzer.outputs.num-sev1-violations}}  sev2: ${{steps.run-code-analyzer.outputs.num-sev2-violations}}  sev3: ${{steps.run-code-analyzer.outputs.num-sev3-violations}}'    
+            })
+
+      - name: Log warnings instead 
+        shell: bash
+        run: |
+          if [ "${{ steps.run-code-analyzer.outputs.scanner_exit_code }}" -gt 0 ]; then
+            echo "Warning: Code violations detected, but this does not block the PR."
+          fi
