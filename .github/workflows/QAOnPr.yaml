@@ -1,0 +1,26 @@
+name: QA on PR DataPRev
+
+on:
+  pull_request:
+    branches:
+      - dev
+
+# Jobs to be executed
+jobs:
+  demo-deploy-on-pr:
+    runs-on: ubuntu-latest
+    container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
+    environment: qa
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4.1.7
+
+      - name: Extracting private key
+        run: 'echo "${{ secrets.JWT_DataPrev }}" > dataprev.key'
+
+      - name: Running the build & deploy
+        run: |
+          export HOME=/root
+          sf builds deploy --buildfile manifest/buildfile.json --client-id ${{ vars.CLIENT_ID }} --instance-url ${{ vars.INSTANCE_URL }} --username ${{ vars.USERNAME }} --jwt-key-file dataprev.key
+
+
