@@ -1,0 +1,42 @@
+description: 'Report metrics to an org'
+inputs:
+  username:
+    description: 'Username'
+    required: true
+  consumer-key:
+    description: 'Consumer Key'
+    required: true
+  jwt-key-file-path:
+    description: 'JWT Key File Path'
+    required: true
+  project-key:
+    description: 'Project Key'
+    required: true
+  start-date:
+    description: 'Start Date'
+    required: true
+  end-date:
+    description: 'End Date'
+    required: false
+  environment:
+    description: 'Environment'
+    required: true
+  status:
+    description: 'Status'
+    required: false
+  type:
+    description: 'Type'
+    required: true
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.username }}
+    - ${{ inputs.consumer-key }}
+    - ${{ inputs.jwt-key-file-path }}
+    - ${{ inputs.project-key }}
+    - ${{ inputs.start-date }}
+    - ${{ inputs.end-date }}
+    - ${{ inputs.environment }}
+    - ${{ inputs.status }}
+    - ${{ inputs.type }}

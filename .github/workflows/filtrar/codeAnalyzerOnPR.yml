@@ -10,14 +10,16 @@ jobs:
     runs-on: 
       group: gps-github-test-runners
     container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
-    continue-on-error: true
+    permissions:
+      contents: write  # Allows writing to the repository (e.g., creating releases)
+      pull-requests: write # Allows interacting with pull requests
+      issues: write
 
     steps:
       - name: Check out files
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
+        uses: actions/checkout@v4.1.7
+        with: 
+          fetch-depth: 0 
 
       - name: Mark repository as safe
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -27,37 +29,83 @@ jobs:
           echo "Running Salesforce Code Analyzer for PR: ${{ github.event.pull_request.title }}"
           echo "Branch: ${{ github.event.pull_request.head.ref }}"
           echo "Changes Summary:"
-          git diff --stat origin/${{ github.event.pull_request.base.ref }} ${{ github.event.pull_request.head.ref }} | tail -n 1
+          git diff --stat origin/${{ github.event.pull_request.base.ref }} origin/${{ github.event.pull_request.head.ref }} | tail -n 1
 
-      - name: Install Salesforce Code Analyzer Plugin
-        run: sf plugins install @salesforce/sfdx-scanner@latest
-
-      - name: Get changed files
+      - name: Get changed files in PR
         id: changed-files
-        uses: tj-actions/changed-files@v44
-
-      - name: Run Salesforce Code Analyzer
-        id: run-code-analyzer
-        uses: forcedotcom/run-code-analyzer@v1
-        with:
-          run-command: run
-          run-arguments: --normalize-severity --target ${{ steps.changed-files.outputs.all_changed_files }} --outfile results.html
-          results-artifact-name: salesforce-code-analyzer-results
-
-      - name: Save Analysis as Comment
-        uses: actions/github-script@v7.0.0
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: '👋 Salesforce Code Analyzer finished with exit-code: ${{steps.run-code-analyzer.outputs.exit-code}} and sev1: ${{steps.run-code-analyzer.outputs.num-sev1-violations}}  sev2: ${{steps.run-code-analyzer.outputs.num-sev2-violations}}  sev3: ${{steps.run-code-analyzer.outputs.num-sev3-violations}}'    
-            })
-
-      - name: Log warnings instead 
-        shell: bash
         run: |
-          if [ "${{ steps.run-code-analyzer.outputs.scanner_exit_code }}" -gt 0 ]; then
-            echo "Warning: Code violations detected, but this does not block the PR."
+          git fetch origin ${{ github.base_ref }} --depth=1
+          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD \
+          | grep -E '\.(cls|trigger|cmp|page|js|ts|html|xml)$' || true)
+          echo "changed_files<<EOF" >> $GITHUB_ENV
+          echo "$CHANGED" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Run Salesforce Code Analyzer and output annotations
+        if: env.changed_files != ''
+        run: |
+          echo "$changed_files" > changed.txt
+
+          RAW_RESULT=$(sfdx scanner:run \
+            --target $(tr '\n' ',' < changed.txt | sed 's/,$//') \
+            --format json \
+            --normalize-severity \
+            --category "Security,Best Practices,Code Style" || true)
+
+          # Extract only JSON block (ignore CLI logs)
+          JSON_ONLY=$(echo "$RAW_RESULT" | sed -n '/^\[/{:a;N;/\]$/!ba;p}')
+
+          # Remove control characters (nulls, etc.)
+          CLEAN_RESULT=$(echo "$JSON_ONLY" | tr -d '\000-\031')
+
+          # Fallback to [] if still empty
+          if [ -z "$CLEAN_RESULT" ]; then
+            CLEAN_RESULT="[]"
           fi
+
+          echo "$CLEAN_RESULT" > scanner-results.json
+
+          COUNT=$(echo "$CLEAN_RESULT" | jq '[.[].violations[]?] | length')
+          echo "Total violations: $COUNT"
+
+          if [ "$COUNT" -gt 0 ]; then
+            echo "$CLEAN_RESULT" | jq -r '
+              .[] | .fileName as $file |
+              .violations[]? |
+              (if .normalizedSeverity <= 2 then "error" else "warning" end) as $level |
+              "::\($level) file=\($file),line=\(.line)::[\(.ruleName)] \(.message)"
+            '
+            echo "❌ Found $COUNT violations"
+          else
+            echo "✅ No violations found"
+          fi
+
+      - name: Comment violations summary on PR and return erros when applied
+        if: always() # always run so we get a comment even if previous step failed
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            let count = 0;
+            try {
+              const data = JSON.parse(fs.readFileSync('scanner-results.json', 'utf8'));
+              count = data.flatMap(f => f.violations || []).length;
+            } catch (e) {
+              console.log("No results found, defaulting to 0");
+            }
+
+            const pr = context.payload.pull_request.number;
+            const body = count > 0
+              ? `⚠️ Salesforce Code Analyzer found **${count} violation(s)** in this PR.`
+              : `✅ Salesforce Code Analyzer found **no violations**.`;
+
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: pr,
+              body: body
+            });
+
+            if (count > 0) {
+              core.setFailed(`Found ${count} violation(s).`);
+            }

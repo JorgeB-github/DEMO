@@ -30,7 +30,18 @@ jobs:
       group: gps-github-test-runners
     container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
     environment: qa
+    outputs:
+      start-date: ${{ steps.capture-start.outputs.start }}
+      end-date: ${{ steps.capture-end.outputs.end }}
     steps:
+      - name: Capture start time
+        id: capture-start
+        if: always()
+        continue-on-error: true
+        run: |
+          START_DATE="$(date -u '+%Y-%m-%dT%H:%M:%S').$(date -u +%N | cut -c1-3)Z"
+          echo "start=$START_DATE" >> $GITHUB_OUTPUT
+      
       - name: Checkout source code
         uses: actions/checkout@v4.1.7
 
@@ -41,4 +52,46 @@ jobs:
         run: |
           export HOME=/root
           sf builds deploy --buildfile manifest/buildfile.json --client-id ${{ vars.CLIENT_ID }} --instance-url ${{ vars.INSTANCE_URL }} --username ${{ vars.USERNAME }} --jwt-key-file server.key
+      
+      - name: Capture end time
+        id: capture-end
+        if: always()
+        continue-on-error: true
+        run: |
+          END_DATE="$(date -u '+%Y-%m-%dT%H:%M:%S').$(date -u +%N | cut -c1-3)Z"
+          echo "end=$END_DATE" >> $GITHUB_OUTPUT
 
+  report-result:
+    name: Report Result
+    runs-on:
+      group: gps-github-test-runners
+    if: always()
+    continue-on-error: true
+    needs: QA
+    steps:
+    - name: Check out the repo
+      uses: actions/checkout@v4.1.7
+
+    - name: Create server key
+      run: 'echo "${{ secrets.REPORT_PRIVATE_KEY }}" > ./report-server.key'
+
+    - name: Set status from previous job result
+      run: |
+        if [[ "${{ needs.QA.result }}" == "success" ]]; then
+          echo "STATUS=Succeeded" >> $GITHUB_ENV
+        else
+          echo "STATUS=Failed" >> $GITHUB_ENV
+        fi
+
+    - name: Report metrics to DevOps Org
+      uses: ./.github/actions/report
+      with:
+        username: ${{ vars.REPORT_USERNAME }}
+        consumer-key: ${{ secrets.REPORT_CONSUMER_KEY }}
+        jwt-key-file-path: './report-server.key'
+        project-key: 'cf6a7802-4693-457b-a385-ffd497b5f949'
+        start-date: ${{ needs.QA.outputs.start-date }}
+        end-date: ${{ needs.QA.outputs.end-date }}
+        environment: 'QA'
+        status: ${{ env.STATUS }}
+        type: 'Deployment'

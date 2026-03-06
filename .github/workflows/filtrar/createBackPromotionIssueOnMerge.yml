@@ -1,0 +1,47 @@
+name: Create Issue on PR Merge
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - hotfix*
+      - fasttrack*
+      - release*
+
+jobs:
+  create_issue:
+    #if: github.event.pull_request.merged == true
+    runs-on: 
+      group: gps-github-test-runners
+    container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
+
+
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+
+    steps:
+      - name: Create Issue
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+
+            const issueTitle = `Follow-up: Hacer el Back Promotion referente a la PR #${pr.number} – ${pr.title}`;
+            const issueBody =
+              "A pull request has been merged.\n\n" +
+              `**PR Title:** ${pr.title}\n` +
+              `**Merged PR:** ${pr.html_url}\n` +
+              `**Opened by:** @${pr.user.login}\n\n` +
+              "Please take the necessary follow-up actions.";
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: issueTitle,
+              body: issueBody,
+              assignees: [pr.user.login],
+              labels: ["watchers:backpromotion"]
+            });
