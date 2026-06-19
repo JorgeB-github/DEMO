@@ -1,12 +1,12 @@
-name: Merge to main - Deploy & Activate (delta)
+name: PR to main - Validate (delta)
 
 on:
-  push:
+  pull_request:
     branches:
       - main
 
 jobs:
-  deploy-delta:
+  validate-delta:
     runs-on: ubuntu-latest
     container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
     environment: AgentForce
@@ -37,12 +37,12 @@ jobs:
             --instance-url "${{ vars.INSTANCE_URL }}" \
             --alias ci --set-default
 
-      - name: Deploy delta + publish & activate agent
+      - name: Validate delta (check-only, no activation)
         run: |
           export HOME=/root
           chmod +x scripts/ci/agent-delta.sh
-          FROM_REF="${{ github.event.before }}" \
-          TO_REF="${{ github.sha }}" \
-          MODE="deploy" \
+          FROM_REF="${{ github.event.pull_request.base.sha }}" \
+          TO_REF="${{ github.event.pull_request.head.sha }}" \
+          MODE="validate" \
           TARGET_ORG="ci" \
           bash scripts/ci/agent-delta.sh
