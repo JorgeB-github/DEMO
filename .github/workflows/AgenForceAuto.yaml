@@ -25,7 +25,9 @@ jobs:
       - name: Install sfdx-git-delta
         run: |
           export HOME=/root
-          yes | sf plugins install sfdx-git-delta || sf plugins install sfdx-git-delta
+          mkdir -p "$HOME/.config/sf"
+          echo '["sfdx-git-delta"]' > "$HOME/.config/sf/unsignedPluginAllowList.json"
+          sf plugins install sfdx-git-delta
 
       - name: Authenticate (JWT)
         run: |
