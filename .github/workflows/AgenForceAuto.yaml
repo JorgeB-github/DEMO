@@ -10,7 +10,7 @@ jobs:
   demo-deploy-on-pr:
     runs-on: ubuntu-latest
     container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
-    environment: agentforce-sandbox
+    environment: AgentForce
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4.1.7
