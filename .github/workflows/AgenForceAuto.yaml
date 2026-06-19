@@ -1,13 +1,13 @@
 name: DEMO Pipline
 
 on:
-  pull_request:
+  push:
     branches:
       - main
 
 # Jobs to be executed
 jobs:
-  demo-deploy-on-pr:
+  demo-deploy-on-push:
     runs-on: ubuntu-latest
     container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
     environment: AgentForce
