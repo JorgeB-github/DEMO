@@ -3,7 +3,7 @@ name: DEMO Pipline
 on:
   pull_request:
     branches:
-      - 
+      - dev
 
 # Jobs to be executed
 jobs:
