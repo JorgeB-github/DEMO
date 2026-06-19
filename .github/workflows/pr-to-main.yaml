@@ -17,15 +17,22 @@ jobs:
           fetch-depth: 0
 
       - name: Mark workspace as safe for git
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        run: |
+          export HOME=/root
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory '*'
 
       - name: Extract JWT private key
         run: echo "${{ secrets.JWT_AGENTFORCE }}" > AgentForce.key
 
-      - name: Install sfdx-git-delta
+      - name: Install / update CLI plugins
         run: |
           export HOME=/root
-          yes | sf plugins install sfdx-git-delta || sf plugins install sfdx-git-delta
+          mkdir -p "$HOME/.config/sf" "$HOME/.config/sfdx"
+          echo '["sfdx-git-delta"]' | tee "$HOME/.config/sf/unsignedPluginAllowList.json" "$HOME/.config/sfdx/unsignedPluginAllowList.json" >/dev/null
+          sf plugins inspect sfdx-git-delta >/dev/null 2>&1 || sf plugins install sfdx-git-delta < /dev/null
+          # Agent (authoring-bundle) commands are recent; ensure the plugin is current.
+          sf plugins install @salesforce/plugin-agent@latest < /dev/null
 
       - name: Authenticate (JWT)
         run: |

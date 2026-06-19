@@ -43,15 +43,25 @@ sf sgd source delta \
 PKG="${DELTA_DIR}/package/package.xml"
 NOAGENT="${DELTA_DIR}/package-noagent.xml"
 
-if [ ! -f "$PKG" ]; then
-  echo ">> No package.xml produced by delta. Nothing changed."
-  exit 0
+# --- detect changed agent bundles directly from git ---
+# sfdx-git-delta may not recognize the (newer) AiAuthoringBundle metadata type,
+# so we resolve changed agents from the git diff to be version-proof.
+AGENTS_GIT="$(git diff --name-only "$FROM_REF" "$TO_REF" 2>/dev/null \
+  | grep '/aiAuthoringBundles/' \
+  | sed -E 's#.*/aiAuthoringBundles/([^/]+)/.*#\1#' \
+  | sort -u || true)"
+
+# --- split agents out of the sgd metadata package (if any) ---
+AGENTS_PKG=""
+if [ -f "$PKG" ]; then
+  echo ">> Delta package.xml (sfdx-git-delta):"; cat "$PKG"; echo
+  AGENTS_PKG="$(node "${SCRIPT_DIR}/split-package.js" "$PKG" "$NOAGENT")"
+else
+  echo ">> No package.xml produced by sfdx-git-delta (no classic metadata changed)."
 fi
 
-echo ">> Delta package.xml:"; cat "$PKG"; echo
-
-# --- split agents out of the metadata package ---
-AGENTS="$(node "${SCRIPT_DIR}/split-package.js" "$PKG" "$NOAGENT")"
+# union of agents detected via git diff and via sgd package
+AGENTS="$(printf '%s\n%s\n' "$AGENTS_GIT" "$AGENTS_PKG" | sed '/^[[:space:]]*$/d' | sort -u)"
 
 HAS_META="false"
 if [ -f "$NOAGENT" ] && grep -q "<types>" "$NOAGENT"; then HAS_META="true"; fi
