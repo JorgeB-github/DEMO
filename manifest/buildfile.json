@@ -2,7 +2,7 @@
   "builds": [
     {
       "type": "metadata",
-      "manifestFile": "manifest/package.xml",
+      "manifestFile": "manifest/packages.xml",
       "testLevel": "NoTestRun",
       "timeout": "33",
       "ignoreWarnings": true,
