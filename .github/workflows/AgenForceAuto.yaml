@@ -17,7 +17,10 @@ jobs:
           fetch-depth: 0
 
       - name: Mark workspace as safe for git
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        run: |
+          export HOME=/root
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory '*'
 
       - name: Extract JWT private key
         run: echo "${{ secrets.JWT_AGENTFORCE }}" > AgentForce.key
