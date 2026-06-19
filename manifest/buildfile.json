@@ -1,9 +1,12 @@
 {
-    "builds": [
-      {
-        "type": "command",
-        "command": "sf --version"
-      }
-    ]
-  }
-  
+  "builds": [
+    {
+      "type": "metadata",
+      "manifestFile": "manifest/package.xml",
+      "testLevel": "NoTestRun",
+      "timeout": "33",
+      "ignoreWarnings": true,
+      "disableTracking": true
+    }
+  ]
+}
