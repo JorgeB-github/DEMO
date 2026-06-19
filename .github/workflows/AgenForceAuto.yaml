@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v4.1.7
 
       - name: Extracting private key
-        run: 'echo "${{ secrets.JWT_AgentForce }}" > AgentForce.key'
+        run: 'echo "${{ secrets.JWT_AGENTFORCE }}" > AgentForce.key'
 
       - name: Running the build & deploy
         run: |
