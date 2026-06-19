@@ -30,14 +30,13 @@ Ambos usan el script reutilizable `scripts/ci/agent-delta.sh`.
 - `INSTANCE_URL` — **dominio real** de la org: `https://login.salesforce.com` o `https://<tu-dominio>.my.salesforce.com`.
   - NO usar `*.salesforce-setup.com` (rompe el JWT).
 
-## ⚠️ Blocker conocido (resolver antes de que el deploy funcione)
+## OAuth scope requerido (RESUELTO)
 
-La External Client App `AgentForceAPPDeploy` debe tener el scope **`Api` ("Manage user data via APIs")**.
-Hoy tiene `Basic, Web, RefreshToken, SFApiPlatform` — le falta `Api`, y por eso el deploy falla con
+La External Client App `AgentForceAPPDeploy` necesita el scope **`Api` ("Manage user data via APIs")**
+para que el JWT pueda usar la REST/Metadata API. Sin él el deploy falla con
 `This session is not valid for use with the REST API`.
 
-Fix: Setup → External Client App Manager → `AgentForceAPPDeploy` → OAuth Settings → agregar
-**Manage user data via APIs (api)** → Save → esperar 2-10 min.
+Estado: ✅ agregado y verificado. Scopes actuales: `Api, Basic, Web, RefreshToken, SFApiPlatform`.
 
 ## ⚠️ Seguridad
 
