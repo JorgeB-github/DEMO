@@ -108,8 +108,18 @@ case "$MODE" in
         [ -z "$a" ] && continue
         echo ">> Publishing agent bundle: ${a}"
         sf agent publish authoring-bundle --api-name "$a" --target-org "$TARGET_ORG" --concise
-        echo ">> Activating agent: ${a}"
-        sf agent activate --api-name "$a" --target-org "$TARGET_ORG"
+        # Resolve the newest BotVersion so activate runs non-interactively (no TTY in CI).
+        echo ">> Resolving latest version of ${a}..."
+        ver="$(sf data query --target-org "$TARGET_ORG" --json \
+          --query "SELECT VersionNumber FROM BotVersion WHERE BotDefinition.DeveloperName='${a}' ORDER BY VersionNumber DESC LIMIT 1" \
+          2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);const r=j.result&&j.result.records&&j.result.records[0];console.log(r?r.VersionNumber:"");}catch(e){console.log("");}})')"
+        if [ -n "$ver" ]; then
+          echo ">> Activating agent ${a} (version ${ver})"
+          sf agent activate --api-name "$a" --version "$ver" --target-org "$TARGET_ORG"
+        else
+          echo ">> Could not resolve version number; trying activate (non-interactive)"
+          sf agent activate --api-name "$a" --target-org "$TARGET_ORG" < /dev/null
+        fi
       done <<< "$AGENTS"
     fi
     ;;
