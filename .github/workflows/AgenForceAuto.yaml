@@ -3,14 +3,14 @@ name: DEMO Pipline
 on:
   pull_request:
     branches:
-      - 
+      - main
 
 # Jobs to be executed
 jobs:
   demo-deploy-on-pr:
     runs-on: ubuntu-latest
     container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
-    environment: dev17
+    environment: agentforce-demo
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4.1.7
