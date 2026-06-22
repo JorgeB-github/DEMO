@@ -2,3 +2,6 @@ PR,Fecha,Tipo,Componente
 "6","2026-06-22","ApexClass","CaseClosedValidator"
 "6","2026-06-22","ApexClass","CaseClosedValidatorTest"
 "6","2026-06-22","AiAuthoringBundle","Reservation_Assistant_Internal"
+"7","2026-06-22","ApexClass","CaseClosedValidator"
+"7","2026-06-22","ApexClass","CaseClosedValidatorTest"
+"7","2026-06-22","Flow","Set_Booking_Cancellation"
