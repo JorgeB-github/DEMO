@@ -117,7 +117,8 @@ subagent reservation_status_updates:
                 found: boolean
                 status: string
                 is_canceled: boolean
-                total_price: currency
+                total_price: object
+                    complex_data_type_name: "lightning__currencyType"
             target: "flow://Get_Booking_Details"
 
         set_booking_cancellation:
