@@ -19,6 +19,16 @@ Ambos usan el script reutilizable `scripts/ci/agent-delta.sh`.
    - **Agentes** -> `sf agent publish authoring-bundle` + `sf agent activate`.
 3. El orden garantiza que las dependencias (flows/permsets) existan antes de publicar el agente.
 
+### Tests de Apex
+
+El script inspecciona las clases `.cls` que cambiaron en el delta:
+
+- Si **alguna es clase de test** (contiene `@isTest` o `testMethod`), el deploy y la validación corren con
+  `--test-level RunSpecifiedTests --tests <ClaseTest1> --tests <ClaseTest2> ...` (solo esas clases).
+- Si **no hay** clases de test en el cambio, se usa `--test-level NoTestRun`.
+
+Esto aplica tanto al **validate** (check-only, corre los tests sin desplegar) como al **deploy** real.
+
 ## Configuración requerida (GitHub → Settings → Environments → `AgentForce`)
 
 **Secrets**

@@ -7,6 +7,10 @@
 #   - metadata (flows, permission sets, apex, etc.) -> sf project deploy start
 #   - agents (aiAuthoringBundle)                    -> sf agent publish + activate
 #
+# If the delta includes Apex test classes (@isTest / testMethod), the metadata
+# deploy/validate runs with --test-level RunSpecifiedTests for those classes;
+# otherwise it uses NoTestRun.
+#
 # Env vars:
 #   FROM_REF     base git ref/sha   (fallback: <TO_REF>~1)
 #   TO_REF       head git ref/sha   (default: HEAD)
@@ -69,12 +73,39 @@ if [ -f "$NOAGENT" ] && grep -q "<types>" "$NOAGENT"; then HAS_META="true"; fi
 echo ">> Non-agent metadata to process: ${HAS_META}"
 echo ">> Agents changed: ${AGENTS:-<none>}"
 
+# --- detect changed Apex test classes -> RunSpecifiedTests ---
+# If the delta includes one or more Apex test classes (@isTest / testMethod),
+# run those specific tests during validate (check-only) and deploy.
+CHANGED_CLS="$(git diff --name-only "$FROM_REF" "$TO_REF" 2>/dev/null | grep -E '\.cls$' || true)"
+TEST_CLASSES=""
+if [ -n "$CHANGED_CLS" ]; then
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    [ -f "$f" ] || continue   # skip deleted files
+    if grep -qiE '@istest|testmethod' "$f"; then
+      TEST_CLASSES="${TEST_CLASSES}$(basename "$f" .cls)"$'\n'
+    fi
+  done <<< "$CHANGED_CLS"
+fi
+TEST_CLASSES="$(printf '%s' "$TEST_CLASSES" | sed '/^[[:space:]]*$/d' | sort -u)"
+
+TEST_FLAGS="--test-level NoTestRun"
+if [ -n "$TEST_CLASSES" ]; then
+  TEST_FLAGS="--test-level RunSpecifiedTests"
+  while IFS= read -r t; do
+    [ -z "$t" ] && continue
+    TEST_FLAGS="${TEST_FLAGS} --tests ${t}"
+  done <<< "$TEST_CLASSES"
+fi
+echo ">> Test classes detected: ${TEST_CLASSES:-<none>}"
+echo ">> Test flags: ${TEST_FLAGS}"
+
 deploy_meta() {
   # $1 = extra flags (e.g. --dry-run)
   sf project deploy start \
     --manifest "$NOAGENT" \
     --target-org "$TARGET_ORG" \
-    --test-level NoTestRun \
+    $TEST_FLAGS \
     --ignore-warnings \
     --wait 33 $1
 }
