@@ -25,7 +25,10 @@ El script inspecciona las clases `.cls` que cambiaron en el delta:
 
 - Si **alguna es clase de test** (contiene `@isTest` o `testMethod`), el deploy y la validación corren con
   `--test-level RunSpecifiedTests --tests <ClaseTest1> --tests <ClaseTest2> ...` (solo esas clases).
-- Si **no hay** clases de test en el cambio, se usa `--test-level NoTestRun`.
+- Si cambia una **clase NO-test y su test NO viene en el cambio**, se busca la clase de test por convención
+  (`<Clase>Test`, `<Clase>_Test`, `Test<Clase>`, `<Clase>Tests`), se **agrega al package** (para que se
+  despliegue) y se **ejecuta**.
+- Si **no hay** ninguna clase de test (ni cambiada ni encontrada), se usa `--test-level NoTestRun`.
 
 Esto aplica tanto al **validate** (check-only, corre los tests sin desplegar) como al **deploy** real.
 

@@ -75,21 +75,52 @@ if [ -f "$NOAGENT" ] && grep -q "<types>" "$NOAGENT"; then HAS_META="true"; fi
 echo ">> Non-agent metadata to process: ${HAS_META}"
 echo ">> Agents changed: ${AGENTS:-<none>}"
 
-# --- detect changed Apex test classes -> RunSpecifiedTests ---
-# If the delta includes one or more Apex test classes (@isTest / testMethod),
-# run those specific tests during validate (check-only) and deploy.
+# --- detect Apex classes & resolve their tests -> RunSpecifiedTests ---
+# Rules:
+#   * A changed test class (@isTest / testMethod) is run as-is.
+#   * A changed NON-test class whose test is NOT in the delta: we find its test
+#     by naming convention, ADD it to the package (so it deploys) and run it.
 CHANGED_CLS="$(git diff --name-only "$FROM_REF" "$TO_REF" 2>/dev/null | grep -E '\.cls$' || true)"
-TEST_CLASSES=""
+TEST_CLASSES=""        # all tests to run
+EXTRA_TEST_MEMBERS=""  # tests to ADD to the package (their class wasn't in the delta as a test)
+
+# Echo the test class name for a given class (by convention), or nothing.
+find_test_for() {
+  local cls="$1" cand f
+  for cand in "${cls}Test" "${cls}_Test" "Test${cls}" "${cls}Tests"; do
+    f="$(find "$SOURCE_DIR" -name "${cand}.cls" -print -quit 2>/dev/null || true)"
+    if [ -n "$f" ]; then echo "$cand"; return 0; fi
+  done
+}
+
 if [ -n "$CHANGED_CLS" ]; then
   while IFS= read -r f; do
     [ -z "$f" ] && continue
     [ -f "$f" ] || continue   # skip deleted files
+    base="$(basename "$f" .cls)"
     if grep -qiE '@istest|testmethod' "$f"; then
-      TEST_CLASSES="${TEST_CLASSES}$(basename "$f" .cls)"$'\n'
+      TEST_CLASSES="${TEST_CLASSES}${base}"$'\n'
+    else
+      t="$(find_test_for "$base")"
+      if [ -n "$t" ]; then
+        echo ">> ${base} no trae su test en el cambio; sumando ${t}"
+        TEST_CLASSES="${TEST_CLASSES}${t}"$'\n'
+        EXTRA_TEST_MEMBERS="${EXTRA_TEST_MEMBERS}${t}"$'\n'
+      else
+        echo ">> WARN: no se encontro clase de test para ${base}"
+      fi
     fi
   done <<< "$CHANGED_CLS"
 fi
 TEST_CLASSES="$(printf '%s' "$TEST_CLASSES" | sed '/^[[:space:]]*$/d' | sort -u)"
+EXTRA_TEST_MEMBERS="$(printf '%s' "$EXTRA_TEST_MEMBERS" | sed '/^[[:space:]]*$/d' | sort -u)"
+
+# Add the discovered tests to the package so they deploy alongside the change.
+if [ -n "$EXTRA_TEST_MEMBERS" ] && [ -f "$NOAGENT" ]; then
+  # shellcheck disable=SC2086
+  node "${SCRIPT_DIR}/add-members.js" "$NOAGENT" ApexClass $EXTRA_TEST_MEMBERS
+  HAS_META="true"
+fi
 
 TEST_FLAGS="--test-level NoTestRun"
 if [ -n "$TEST_CLASSES" ]; then
