@@ -7,12 +7,18 @@
 #   - metadata (flows, permission sets, apex, etc.) -> sf project deploy start
 #   - agents (aiAuthoringBundle)                    -> sf agent publish + activate
 #
+# If the delta includes Apex test classes (@isTest / testMethod), the metadata
+# deploy/validate runs with --test-level RunSpecifiedTests for those classes;
+# otherwise it uses NoTestRun.
+#
 # Env vars:
 #   FROM_REF     base git ref/sha   (fallback: <TO_REF>~1)
 #   TO_REF       head git ref/sha   (default: HEAD)
 #   MODE         validate | deploy  (default: validate)
 #   TARGET_ORG   org alias/username (required)
 #   SOURCE_DIR   package dir        (default: force-app)
+#   RELEASE_NOTES (deploy only) path to a cumulative CSV to append component rows
+#   PR_NUMBER     (deploy only) PR number recorded in the release notes
 #
 set -euo pipefail
 
@@ -69,12 +75,39 @@ if [ -f "$NOAGENT" ] && grep -q "<types>" "$NOAGENT"; then HAS_META="true"; fi
 echo ">> Non-agent metadata to process: ${HAS_META}"
 echo ">> Agents changed: ${AGENTS:-<none>}"
 
+# --- detect changed Apex test classes -> RunSpecifiedTests ---
+# If the delta includes one or more Apex test classes (@isTest / testMethod),
+# run those specific tests during validate (check-only) and deploy.
+CHANGED_CLS="$(git diff --name-only "$FROM_REF" "$TO_REF" 2>/dev/null | grep -E '\.cls$' || true)"
+TEST_CLASSES=""
+if [ -n "$CHANGED_CLS" ]; then
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    [ -f "$f" ] || continue   # skip deleted files
+    if grep -qiE '@istest|testmethod' "$f"; then
+      TEST_CLASSES="${TEST_CLASSES}$(basename "$f" .cls)"$'\n'
+    fi
+  done <<< "$CHANGED_CLS"
+fi
+TEST_CLASSES="$(printf '%s' "$TEST_CLASSES" | sed '/^[[:space:]]*$/d' | sort -u)"
+
+TEST_FLAGS="--test-level NoTestRun"
+if [ -n "$TEST_CLASSES" ]; then
+  TEST_FLAGS="--test-level RunSpecifiedTests"
+  while IFS= read -r t; do
+    [ -z "$t" ] && continue
+    TEST_FLAGS="${TEST_FLAGS} --tests ${t}"
+  done <<< "$TEST_CLASSES"
+fi
+echo ">> Test classes detected: ${TEST_CLASSES:-<none>}"
+echo ">> Test flags: ${TEST_FLAGS}"
+
 deploy_meta() {
   # $1 = extra flags (e.g. --dry-run)
   sf project deploy start \
     --manifest "$NOAGENT" \
     --target-org "$TARGET_ORG" \
-    --test-level NoTestRun \
+    $TEST_FLAGS \
     --ignore-warnings \
     --wait 33 $1
 }
@@ -121,6 +154,13 @@ case "$MODE" in
           sf agent activate --api-name "$a" --target-org "$TARGET_ORG" < /dev/null
         fi
       done <<< "$AGENTS"
+    fi
+    # --- release notes (one CSV row per deployed component) ---
+    if [ -n "${RELEASE_NOTES:-}" ]; then
+      pkg_for_notes="$NOAGENT"; [ -f "$pkg_for_notes" ] || pkg_for_notes="-"
+      echo ">> Recording release notes in ${RELEASE_NOTES}"
+      # shellcheck disable=SC2086
+      node "${SCRIPT_DIR}/release-notes.js" "$pkg_for_notes" "${PR_NUMBER:-}" "$(date +%Y-%m-%d)" "$RELEASE_NOTES" $AGENTS
     fi
     ;;
 

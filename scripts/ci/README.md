@@ -19,6 +19,35 @@ Ambos usan el script reutilizable `scripts/ci/agent-delta.sh`.
    - **Agentes** -> `sf agent publish authoring-bundle` + `sf agent activate`.
 3. El orden garantiza que las dependencias (flows/permsets) existan antes de publicar el agente.
 
+### Tests de Apex
+
+El script inspecciona las clases `.cls` que cambiaron en el delta:
+
+- Si **alguna es clase de test** (contiene `@isTest` o `testMethod`), el deploy y la validación corren con
+  `--test-level RunSpecifiedTests --tests <ClaseTest1> --tests <ClaseTest2> ...` (solo esas clases).
+- Si **no hay** clases de test en el cambio, se usa `--test-level NoTestRun`.
+
+Esto aplica tanto al **validate** (check-only, corre los tests sin desplegar) como al **deploy** real.
+
+## Release notes (CSV acumulativo)
+
+En cada **deploy a `main`**, el pipeline registra una fila por componente desplegado en
+`docs/release-notes.csv` y lo commitea de vuelta al repo (con `[skip ci]` para no re-disparar).
+
+Columnas: `PR, Fecha, Tipo, Componente`. Ejemplo:
+
+```csv
+PR,Fecha,Tipo,Componente
+"3","2026-06-22","ApexClass","CaseClosedValidator"
+"3","2026-06-22","ApexClass","CaseClosedValidatorTest"
+"3","2026-06-22","AiAuthoringBundle","Reservation_Assistant_Internal"
+```
+
+- Metadata clásica sale del `package.xml` del delta; los agentes se agregan como `AiAuthoringBundle`.
+- El nro de PR se extrae del mensaje del merge commit (`Merge pull request #N`).
+- Requiere `permissions: contents: write` en el workflow (ya configurado) para commitear el CSV.
+- Se abre directo en Excel.
+
 ## Configuración requerida (GitHub → Settings → Environments → `AgentForce`)
 
 **Secrets**
