@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
     environment: AgentForce
+    permissions:
+      contents: write
     steps:
       - name: Checkout (full history)
         uses: actions/checkout@v4.1.7
@@ -48,8 +50,26 @@ jobs:
         run: |
           export HOME=/root
           chmod +x scripts/ci/agent-delta.sh
+          # PR number from the merge commit message (e.g. "Merge pull request #3 ...").
+          PR_NUMBER="$(git log -1 --pretty=%B | grep -oE '#[0-9]+' | head -n1 | tr -d '#' || true)"
+          echo "PR_NUMBER=${PR_NUMBER}"
           FROM_REF="${{ github.event.before }}" \
           TO_REF="${{ github.sha }}" \
           MODE="deploy" \
           TARGET_ORG="ci" \
+          RELEASE_NOTES="docs/release-notes.csv" \
+          PR_NUMBER="${PR_NUMBER}" \
           bash scripts/ci/agent-delta.sh
+
+      - name: Commit release notes
+        run: |
+          export HOME=/root
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git add docs/release-notes.csv 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No release-notes changes to commit."
+          else
+            git commit -m "docs: release notes [skip ci]"
+            git push origin HEAD:main
+          fi

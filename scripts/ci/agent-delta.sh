@@ -17,6 +17,8 @@
 #   MODE         validate | deploy  (default: validate)
 #   TARGET_ORG   org alias/username (required)
 #   SOURCE_DIR   package dir        (default: force-app)
+#   RELEASE_NOTES (deploy only) path to a cumulative CSV to append component rows
+#   PR_NUMBER     (deploy only) PR number recorded in the release notes
 #
 set -euo pipefail
 
@@ -152,6 +154,13 @@ case "$MODE" in
           sf agent activate --api-name "$a" --target-org "$TARGET_ORG" < /dev/null
         fi
       done <<< "$AGENTS"
+    fi
+    # --- release notes (one CSV row per deployed component) ---
+    if [ -n "${RELEASE_NOTES:-}" ]; then
+      pkg_for_notes="$NOAGENT"; [ -f "$pkg_for_notes" ] || pkg_for_notes="-"
+      echo ">> Recording release notes in ${RELEASE_NOTES}"
+      # shellcheck disable=SC2086
+      node "${SCRIPT_DIR}/release-notes.js" "$pkg_for_notes" "${PR_NUMBER:-}" "$(date +%Y-%m-%d)" "$RELEASE_NOTES" $AGENTS
     fi
     ;;
 
