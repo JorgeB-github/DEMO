@@ -5,3 +5,5 @@ PR,Fecha,Tipo,Componente
 "7","2026-06-22","ApexClass","CaseClosedValidator"
 "7","2026-06-22","ApexClass","CaseClosedValidatorTest"
 "7","2026-06-22","Flow","Set_Booking_Cancellation"
+"8","2026-06-23","ApexClass","CaseClosedValidator"
+"8","2026-06-23","ApexClass","CaseClosedValidatorTest"
