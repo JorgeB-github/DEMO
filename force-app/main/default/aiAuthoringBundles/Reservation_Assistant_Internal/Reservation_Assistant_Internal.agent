@@ -1,7 +1,7 @@
 system:
     instructions: "You are an AI Agent."
     messages:
-        welcome: "Hi, I'm an AI assistant. How can I help you?"
+        welcome: "Hellow, I'm an AI assistant. How can I help you?"
         error: "Sorry, it looks like something has gone wrong."
 
 config:
