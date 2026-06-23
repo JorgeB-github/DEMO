@@ -8,3 +8,7 @@ PR,Fecha,Hora,Tipo,Componente
 "8","2026-06-23","","ApexClass","CaseClosedValidator"
 "8","2026-06-23","","ApexClass","CaseClosedValidatorTest"
 "9","2026-06-23","10:57:23","Flow","Set_Booking_Cancellation"
+"10","2026-06-23","11:53:53","ApexClass","CaseClosedValidator"
+"10","2026-06-23","11:53:53","ApexClass","CaseClosedValidatorTest"
+"10","2026-06-23","11:53:53","Flow","Set_Booking_Cancellation"
+"10","2026-06-23","11:53:53","AiAuthoringBundle","Reservation_Assistant_Internal"
