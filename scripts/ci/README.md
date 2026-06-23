@@ -37,15 +37,18 @@ Esto aplica tanto al **validate** (check-only, corre los tests sin desplegar) co
 En cada **deploy a `main`**, el pipeline registra una fila por componente desplegado en
 `docs/release-notes.csv` y lo commitea de vuelta al repo (con `[skip ci]` para no re-disparar).
 
-Columnas: `PR, Fecha, Tipo, Componente`. Ejemplo:
+Columnas: `PR, Fecha, Hora, Tipo, Componente`. Ejemplo:
 
 ```csv
-PR,Fecha,Tipo,Componente
-"3","2026-06-22","ApexClass","CaseClosedValidator"
-"3","2026-06-22","ApexClass","CaseClosedValidatorTest"
-"3","2026-06-22","AiAuthoringBundle","Reservation_Assistant_Internal"
+PR,Fecha,Hora,Tipo,Componente
+"3","2026-06-22","14:35:07","ApexClass","CaseClosedValidator"
+"3","2026-06-22","14:35:07","ApexClass","CaseClosedValidatorTest"
+"3","2026-06-22","14:35:07","AiAuthoringBundle","Reservation_Assistant_Internal"
 ```
 
+- La **Hora** es `HH:MM:SS`. Los runners de GitHub son UTC; se usa `America/Argentina/Buenos_Aires`
+  por defecto (override con la variable `TZ_RN`).
+- Si el CSV ya existía con el header viejo (sin `Hora`), se migra automáticamente en el próximo deploy.
 - Metadata clásica sale del `package.xml` del delta; los agentes se agregan como `AiAuthoringBundle`.
 - El nro de PR se extrae del mensaje del merge commit (`Merge pull request #N`).
 - Requiere `permissions: contents: write` en el workflow (ya configurado) para commitear el CSV.

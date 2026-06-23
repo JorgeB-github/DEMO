@@ -190,8 +190,12 @@ case "$MODE" in
     if [ -n "${RELEASE_NOTES:-}" ]; then
       pkg_for_notes="$NOAGENT"; [ -f "$pkg_for_notes" ] || pkg_for_notes="-"
       echo ">> Recording release notes in ${RELEASE_NOTES}"
+      # GitHub runners are UTC; use a local TZ (override with TZ_RN) for date/time.
+      rn_tz="${TZ_RN:-America/Argentina/Buenos_Aires}"
+      rn_date="$(TZ="$rn_tz" date +%Y-%m-%d)"
+      rn_time="$(TZ="$rn_tz" date +%H:%M:%S)"
       # shellcheck disable=SC2086
-      node "${SCRIPT_DIR}/release-notes.js" "$pkg_for_notes" "${PR_NUMBER:-}" "$(date +%Y-%m-%d)" "$RELEASE_NOTES" $AGENTS
+      node "${SCRIPT_DIR}/release-notes.js" "$pkg_for_notes" "${PR_NUMBER:-}" "$rn_date" "$rn_time" "$RELEASE_NOTES" $AGENTS
     fi
     ;;
 
