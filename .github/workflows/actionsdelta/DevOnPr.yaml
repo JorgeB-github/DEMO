@@ -1,0 +1,54 @@
+name: Build on PR DataPRev
+
+on:
+  pull_request:
+    branches:
+      - dev_old
+
+# Jobs to be executed
+jobs:
+  dataprev-build-deploy-on-pr:
+    runs-on: 
+      group: gps-github-test-runners
+    container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
+    environment: build
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4.1.7
+
+      # - name: Edit .agent and .bot files via Python
+      #   env: 
+      #     AGENT_USER_MEC: "${{ vars.AGENT_USER_MEC }}.build"
+      #   run: |
+      #     python3 -c "
+      #     import os
+
+      #     new_user = os.getenv('AGENT_USER_MEC')
+          
+      #     # Lista com os dois caminhos
+      #     paths = [
+      #         'force-app/main/default/aiAuthoringBundles/GovBRMECAgent/GovBRMECAgent.agent',
+      #         'force-app/main/default/bots/GovBRMECAgent/GovBRMECAgent.bot-meta.xml'
+      #     ]
+          
+      #     for path in paths:
+      #         if os.path.exists(path):
+      #             with open(path, 'r') as f:
+      #                 text = f.read()
+                  
+      #             new_text = text.replace('sisuagent@dataprev.gov.br.dev', new_user)
+                  
+      #             with open(path, 'w') as f:
+      #                 f.write(new_text)
+      #             print(f'Sucesso ao editar: {path}')
+      #         else:
+      #             print(f'Aviso: Caminho não encontrado: {path}')
+      #     "
+
+      - name: Extracting private key
+        run: 'echo "${{ secrets.JWT_DataPrev }}" > dataprev.key'
+
+      - name: Running the build & deploy
+        run: |
+          export HOME=/root
+          sf builds deploy --buildfile manifest/buildfile.json --client-id ${{ vars.CLIENT_ID }} --instance-url ${{ vars.INSTANCE_URL }} --username ${{ vars.USERNAME }} --jwt-key-file dataprev.key

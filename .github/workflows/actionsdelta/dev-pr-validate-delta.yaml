@@ -1,0 +1,78 @@
+name: PR to dev - Validate QA (delta)
+
+on:
+  pull_request:
+    branches:
+      - dev
+
+jobs:
+  validate-delta:
+    runs-on:
+      group: gps-github-test-runners
+    container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
+    environment: qa
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4.1.7
+        with:
+          fetch-depth: 0
+
+      - name: Mark workspace as safe for git
+        run: |
+          export HOME=/root
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory '*'
+
+      - name: Check agent tokens (no env values committed)
+        run: |
+          export HOME=/root
+          chmod +x scripts/ci/check-agent-tokens.sh
+          FROM_REF="${{ github.event.pull_request.base.sha }}" \
+          TO_REF="${{ github.event.pull_request.head.sha }}" \
+          bash scripts/ci/check-agent-tokens.sh
+
+      # Desactivado: validacion de limites de description (Agentforce DX guardrail).
+      # Reactivar si se vuelve a usar sf agent publish / validate authoring-bundle.
+      # - name: Check agent description lengths (field limits)
+      #   run: |
+      #     export HOME=/root
+      #     chmod +x scripts/ci/check-agent-desc-length.sh
+      #     FROM_REF="${{ github.event.pull_request.base.sha }}" \
+      #     TO_REF="${{ github.event.pull_request.head.sha }}" \
+      #     bash scripts/ci/check-agent-desc-length.sh
+
+      - name: Extract JWT private key
+        run: echo "${{ secrets.JWT_DataPrev }}" > dataprev.key
+
+      - name: Install / update CLI plugins
+        run: |
+          export HOME=/root
+          mkdir -p "$HOME/.config/sf" "$HOME/.config/sfdx"
+          echo '["sfdx-git-delta"]' | tee "$HOME/.config/sf/unsignedPluginAllowList.json" "$HOME/.config/sfdx/unsignedPluginAllowList.json" >/dev/null
+          sf plugins inspect sfdx-git-delta >/dev/null 2>&1 || sf plugins install sfdx-git-delta < /dev/null
+          # Desactivado: Agentforce DX (sf agent ...). Validacion/deploy van por Salesforce CLI
+          # (sf project deploy). Para reactivar DX: descomentar y setear USE_AGENTFORCE_DX=true.
+          # sf plugins install @salesforce/plugin-agent@latest < /dev/null
+
+      - name: Authenticate (JWT)
+        run: |
+          export HOME=/root
+          sf org login jwt \
+            --client-id "${{ vars.CLIENT_ID }}" \
+            --jwt-key-file dataprev.key \
+            --username "${{ vars.USERNAME }}" \
+            --instance-url "${{ vars.INSTANCE_URL }}" \
+            --alias qa --set-default
+
+      - name: Validate delta (check-only via Salesforce CLI)
+        run: |
+          export HOME=/root
+          export NODE_OPTIONS="--max_old_space_size=4096"
+          chmod +x scripts/ci/agent-delta.sh
+          FROM_REF="${{ github.event.pull_request.base.sha }}" \
+          TO_REF="${{ github.event.pull_request.head.sha }}" \
+          MODE="validate" \
+          TARGET_ORG="qa" \
+          RENDER_ENV="qa" \
+          USE_AGENTFORCE_DX="false" \
+          bash scripts/ci/agent-delta.sh

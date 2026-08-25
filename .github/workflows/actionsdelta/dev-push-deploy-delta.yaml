@@ -1,0 +1,86 @@
+name: Push to dev - Deploy QA (delta, Salesforce CLI)
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  deploy-delta:
+    runs-on:
+      group: gps-github-test-runners
+    container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
+    environment: qa
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4.1.7
+        with:
+          fetch-depth: 0
+
+      - name: Mark workspace as safe for git
+        run: |
+          export HOME=/root
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory '*'
+
+      - name: Extract JWT private key
+        run: echo "${{ secrets.JWT_DataPrev }}" > dataprev.key
+
+      - name: Install / update CLI plugins
+        run: |
+          export HOME=/root
+          mkdir -p "$HOME/.config/sf" "$HOME/.config/sfdx"
+          echo '["sfdx-git-delta"]' | tee "$HOME/.config/sf/unsignedPluginAllowList.json" "$HOME/.config/sfdx/unsignedPluginAllowList.json" >/dev/null
+          sf plugins inspect sfdx-git-delta >/dev/null 2>&1 || sf plugins install sfdx-git-delta < /dev/null
+          # Desactivado: Agentforce DX (sf agent publish/activate). Deploy de agentes + core
+          # va por Salesforce CLI (sf project deploy). Para reactivar DX: descomentar y
+          # setear USE_AGENTFORCE_DX=true en el step de deploy.
+          # sf plugins install @salesforce/plugin-agent@latest < /dev/null
+
+      - name: Authenticate (JWT)
+        run: |
+          export HOME=/root
+          sf org login jwt \
+            --client-id "${{ vars.CLIENT_ID }}" \
+            --jwt-key-file dataprev.key \
+            --username "${{ vars.USERNAME }}" \
+            --instance-url "${{ vars.INSTANCE_URL }}" \
+            --alias qa --set-default
+
+      - name: Deploy delta (Salesforce CLI — agents + core)
+        run: |
+          export HOME=/root
+          export NODE_OPTIONS="--max_old_space_size=4096"
+          chmod +x scripts/ci/agent-delta.sh
+          # PR number from the merge commit message (e.g. "Merge pull request #3 ...").
+          PR_NUMBER="$(git log -1 --pretty=%B | grep -oE '#[0-9]+' | head -n1 | tr -d '#' || true)"
+          echo "PR_NUMBER=${PR_NUMBER}"
+          FROM_REF="${{ github.event.before }}" \
+          TO_REF="${{ github.sha }}" \
+          MODE="deploy" \
+          TARGET_ORG="qa" \
+          RENDER_ENV="qa" \
+          USE_AGENTFORCE_DX="false" \
+          RELEASE_NOTES="docs/release-notes.csv" \
+          PR_NUMBER="${PR_NUMBER}" \
+          TZ_RN="America/Sao_Paulo" \
+          bash scripts/ci/agent-delta.sh
+          
+#         Desactivado: la rama está protegida (branch rules: PR + status checks obligatorios),
+#         por lo que el push directo del CI era rechazado (GH013). El deploy no depende de esto.
+#         El CSV se sigue generando en docs/release-notes.csv durante el deploy (queda en los logs),
+#         solo dejó de commitearse/pushearse a la rama. Para reactivarlo, quitar el comentario.
+#      - name: Commit release notes
+#        run: |
+#          export HOME=/root
+#          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+#          git config --global user.name "github-actions[bot]"
+#          git add docs/release-notes.csv 2>/dev/null || true
+#          if git diff --cached --quiet; then
+#            echo "No release-notes changes to commit."
+#          else
+#            git commit -m "docs: release notes [skip ci]"
+#            git push origin HEAD:dev
+#          fi

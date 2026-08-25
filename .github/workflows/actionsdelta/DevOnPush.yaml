@@ -1,0 +1,214 @@
+name: QA on Push DataPRev
+
+on:
+ push:
+   branches:
+     - dev_old
+
+# Jobs to be executed
+jobs:
+ dataprev-qa-deploy-on-push:
+   runs-on:
+     group: gps-github-test-runners
+   container: tnascimento013/latam_salesforcedx_industries_orgdevmodebuilds:latest
+   environment: qa
+   steps:
+     - name: Checkout source code
+       uses: actions/checkout@v4.1.7
+
+    # STEP 1: Focado exclusivamente na troca do usuário do User do Agente e do User do Bot
+     - name: Edit Agent, Bot User via Python and .env
+       run: |
+         python3 -c "
+         import os
+         import sys
+         import xml.etree.ElementTree as ET
+         
+         bot_name = None
+         base_user = None
+         
+         # 1. Caminho para o package.xml
+         package_path = 'manifest/package.xml'
+         
+         # 2. Extraindo o nome do Bot do XML
+         if os.path.exists(package_path):
+             tree = ET.parse(package_path)
+             root = tree.getroot()
+             ns = {'sf': 'http://soap.sforce.com/2006/04/metadata'}
+             
+             for types in root.findall('sf:types', ns):
+                 name_tag = types.find('sf:name', ns)
+                 if name_tag is not None and name_tag.text == 'Bot':
+                     members_tag = types.find('sf:members', ns)
+                     if members_tag is not None:
+                         bot_name = members_tag.text
+                         break
+         
+         # Se não encontrar o Bot, encerra com sucesso (código 0) para apenas pular a etapa
+         if not bot_name:
+             print('Bot não encontrado no package.xml. Pulando a edição de usuário...')
+             sys.exit(0)
+             
+         print(f'Nome do Bot encontrado: {bot_name}')
+         
+         # 3. Lendo o arquivo .env
+         env_path = f'agentPipeline/{bot_name}.env'
+         
+         if os.path.exists(env_path):
+             with open(env_path, 'r') as f_env:
+                 for line in f_env:
+                     line = line.strip()
+                     if line and not line.startswith('#'):
+                         if line.startswith('username='):
+                             base_user = line.split('=', 1)[1].strip().strip('\"\'')
+                             break
+                             
+             if not base_user:
+                 print(f'Aviso: Chave \"username=\" não encontrada no arquivo {env_path}. Pulando...')
+                 sys.exit(0)
+         else:
+             print(f'Aviso: Arquivo .env não encontrado em: {env_path}. Pulando...')
+             sys.exit(0)
+         
+         # 4. Montando os usuários com os sufixos dinâmicos
+         old_user = f'{base_user}.dev'
+         new_user = f'{base_user}.qa'
+         
+         print(f'Substituindo [{old_user}] por [{new_user}]')
+         
+         # 5. Substituição do texto nos metadados
+         paths = [
+             f'force-app/main/default/aiAuthoringBundles/{bot_name}/{bot_name}.agent',
+             f'force-app/main/default/bots/{bot_name}/{bot_name}.bot-meta.xml'
+         ]
+         
+         for path in paths:
+             if os.path.exists(path):
+                 with open(path, 'r') as f:
+                     text = f.read()
+                 
+                 # Faz o replace dinâmico
+                 text = text.replace(old_user, new_user)
+                 
+                 with open(path, 'w') as f:
+                     f.write(text)
+                 print(f'Sucesso ao editar Usuário em: {path}')
+             else:
+                 print(f'Aviso: Arquivo de metadado não encontrado: {path}')
+         "
+
+    # STEP 2: Focado exclusivamente na troca dos RAG IDs (DEV -> QA)
+     - name: Edit RAG IDs in files
+       run: |
+         python3 -c "
+         import os
+         import sys
+         import xml.etree.ElementTree as ET
+         
+         bot_name = None
+         planner_name = None
+         
+         # 1. Lendo package.xml para pegar o Bot e o GenAiPlannerBundle
+         package_path = 'manifest/package.xml'
+         if os.path.exists(package_path):
+             tree = ET.parse(package_path)
+             root = tree.getroot()
+             ns = {'sf': 'http://soap.sforce.com/2006/04/metadata'}
+             
+             for types in root.findall('sf:types', ns):
+                 name_tag = types.find('sf:name', ns)
+                 if name_tag is not None:
+                     if name_tag.text == 'Bot':
+                         members_tag = types.find('sf:members', ns)
+                         if members_tag is not None:
+                             bot_name = members_tag.text
+                     elif name_tag.text == 'GenAiPlannerBundle':
+                         members_tag = types.find('sf:members', ns)
+                         if members_tag is not None:
+                             planner_name = members_tag.text
+         
+         if not bot_name:
+             print('Bot não encontrado no package.xml. Pulando step 2...')
+             sys.exit(0)
+             
+         # 2. Lendo as configurações do .env
+         env_path = f'agentPipeline/{bot_name}.env'
+         env_vars = {}
+         
+         if os.path.exists(env_path):
+             with open(env_path, 'r') as f_env:
+                 for line in f_env:
+                     line = line.strip()
+                     if line and not line.startswith('#') and '=' in line:
+                         key, val = line.split('=', 1)
+                         env_vars[key.strip()] = val.strip().strip('\"\'')
+         else:
+             print(f'Arquivo .env não encontrado em: {env_path}. Pulando...')
+             sys.exit(0)
+             
+         # 3. Extraindo os valores de DEV e de QA do .env
+         # IDs do Agent (.agent)
+         rag_id_dev = env_vars.get('adl.config.id.dev')
+         rag_id_qa = env_vars.get('adl.config.id.qa')
+         
+         # IDs do FAQ (schema.json)
+         rag_faq_id_dev = env_vars.get('adl.config.faq.id.dev')
+         rag_faq_id_qa = env_vars.get('adl.config.faq.id.qa')
+         
+         # Caminho da pasta
+         folder_schema = env_vars.get('folder.path.schema.faq')
+         
+         # Validação de segurança: verifica se todas as variáveis necessárias existem
+         if not (rag_id_dev and rag_id_qa and rag_faq_id_dev and rag_faq_id_qa and folder_schema):
+             print('Aviso: Faltam variáveis de DEV ou QA no arquivo .env. Pulando...')
+             sys.exit(0)
+             
+         print(f'Substituindo Agent ID: {rag_id_dev} -> {rag_id_qa}')
+         print(f'Substituindo FAQ ID: {rag_faq_id_dev} -> {rag_faq_id_qa}')
+             
+         # 4. Alterando o arquivo .agent (Substituição Exata)
+         agent_path = f'force-app/main/default/aiAuthoringBundles/{bot_name}/{bot_name}.agent'
+         
+         if os.path.exists(agent_path):
+             with open(agent_path, 'r') as f:
+                 text = f.read()
+             
+             # Substitui apenas se encontrar exatamente o ID de DEV
+             text = text.replace(rag_id_dev, rag_id_qa)
+             
+             with open(agent_path, 'w') as f:
+                 f.write(text)
+             print(f'Sucesso ao editar RAG ID no Agent: {agent_path}')
+         else:
+             print(f'Aviso: Arquivo .agent não encontrado: {agent_path}')
+             
+         # 5. Alterando o arquivo schema.json (Substituição Exata)
+         if planner_name:
+             # Monta o caminho usando a variável folder.path.schema.faq lida do .env
+             schema_path = f'force-app/main/default/genAiPlannerBundles/{planner_name}/localActions/{folder_schema}/schema.json'
+             
+             if os.path.exists(schema_path):
+                 with open(schema_path, 'r') as f:
+                     text = f.read()
+                 
+                 # Substitui apenas se encontrar exatamente o ID de FAQ de DEV (o longo com UUID)
+                 text = text.replace(rag_faq_id_dev, rag_faq_id_qa)
+                 
+                 with open(schema_path, 'w') as f:
+                     f.write(text)
+                 print(f'Sucesso ao editar RAG FAQ ID no Schema: {schema_path}')
+             else:
+                 print(f'Aviso: Arquivo schema.json não encontrado: {schema_path}')
+         else:
+             print('Aviso: GenAiPlannerBundle não encontrado no package.xml.')
+         "
+
+     - name: Extracting private key
+       run: 'echo "${{ secrets.JWT_DataPrev }}" > dataprev.key'
+
+
+     - name: Running the build & deploy
+       run: |
+         export HOME=/root
+         sf builds deploy --buildfile manifest/buildfile.json --client-id ${{ vars.CLIENT_ID }} --instance-url ${{ vars.INSTANCE_URL }} --username ${{ vars.USERNAME }} --jwt-key-file dataprev.key
+
